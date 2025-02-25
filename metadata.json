@@ -1,0 +1,9 @@
+{
+    "name":"P3",
+    "author": "jcnlk",
+    "entry": "index.js",
+    "version": "1.0.0",
+    "description": "meow", 
+    "requires": ["Vigilance"]
+  }
+  
