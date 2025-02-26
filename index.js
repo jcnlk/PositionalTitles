@@ -1,10 +1,20 @@
 import config from "./config";
 
-const BossStatus = Java.type("net.minecraft.entity.boss.BossStatus");
 const PREFIX = "&8[&6PT&8]&r";
+const tablistClassRegex = /\[(?:.+)\] (.+) \((Berserk|Archer|Mage|Tank|Healer) ([a-zA-Z]+)\)/;
+const BossStatus = Java.type("net.minecraft.entity.boss.BossStatus");
 
 let currentGoldorPhase = 0;
-let lastLocation = null;
+
+const lastLocation = {
+  AtP2: false,
+  AtSS: false,
+  AtEE2: false,
+  AtEE3: false,
+  AtCore: false,
+  InCore: false,
+  AtMid: false
+}
 
 const ClassColor = {
   Healer: "&d",
@@ -14,7 +24,7 @@ const ClassColor = {
   Archer: "&c"
 };
 
-const playSound = () => {
+function playSound() {
   let count = 0;
   const playNext = () => {
     if (count >= 120) return;
@@ -25,7 +35,7 @@ const playSound = () => {
   playNext();
 };
 
-const showTitle = text => {
+function showTitle(text) {
   const overlay = register("renderOverlay", () => {
     const scale = 1.7;
     const screenWidth = Renderer.screen.getWidth();
@@ -43,7 +53,12 @@ const showTitle = text => {
   setTimeout(() => overlay.unregister(), 2000);
 };
 
-const isPlayerInArea = (entity, x1, x2, y1, y2, z1, z2) => {
+function showAlert(text) {
+  ChatLib.chat(`${PREFIX} ` + text)
+  showTitle(text);
+}
+
+function isPlayerInArea(x1, x2, y1, y2, z1, z2, entity = Player.getPlayer()) {
   const x = entity.getX();
   const y = entity.getY();
   const z = entity.getZ();
@@ -54,106 +69,98 @@ const isPlayerInArea = (entity, x1, x2, y1, y2, z1, z2) => {
   );
 };
 
-const tablistRegex = /\[(?:.+)\] (.+) \((Berserk|Archer|Mage|Tank|Healer) ([a-zA-Z]+)\)/;
-
-const getClassOf = name => {
+function getClassOf(name) {
   const foundLine = TabList.getNames().find(line =>
     line.removeFormatting().includes(name)
   );
   if (!foundLine) return { color: "&f", className: "?" };
 
-  const match = foundLine.removeFormatting().match(tablistRegex);
+  const match = foundLine.removeFormatting().match(tablistClassRegex);
   if (!match) return { color: "&f", className: "?" };
 
   const className = match[2];
   return { color: ClassColor[className] || "&f", className };
 };
 
-const getIsInGoldor = () => {
+function getIsInMaxor() {
   const bossName = BossStatus.field_82827_c;
-  return bossName ? bossName.removeFormatting().includes("Goldor") : false;
-};
+  if (!bossName) return false;
+  return bossName.removeFormatting().includes("Maxor");
+}
+
+function getIsInStorm() {
+  const bossName = BossStatus.field_82827_c;
+  if (!bossName) return false;
+  return bossName.removeFormatting().includes("Storm");
+}
+
+function getIsInGoldor() {
+  const bossName = BossStatus.field_82827_c;
+  if (!bossName) return false;
+  return bossName.removeFormatting().includes("Goldor");
+}
+
+function getIsInNecron() {
+  const bossName = BossStatus.field_82827_c;
+  if (!bossName) return false;
+  return bossName.removeFormatting().includes("Necron");
+}
 
 register("chat", message => {
-  if (message === "[BOSS] Storm: I should have known that I stood no chance.")
-    currentGoldorPhase = 1;
-  if ((message.includes("(7/7)") || message.includes("(8/8)")) && !message.includes(":"))
-    currentGoldorPhase += 1;
+  if (message === "[BOSS] Storm: I should have known that I stood no chance.") currentGoldorPhase = 1;
+  if ((message.includes("(7/7)") || message.includes("(8/8)")) && !message.includes(":")) currentGoldorPhase += 1;
 }).setCriteria("${message}");
 
-const zones = [
-  {
-    name: "At SS",
-    phaseCondition: phase => phase === 0,
-    coords: [106, 110, 118, 122, 92, 96],
-    formatMessage: (playerName, playerInfo) =>
-      `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt SS!`
-  },
-  {
-    name: "At EE2",
-    phaseCondition: phase => phase === 1,
-    coords: [52, 56, 107, 111, 129, 133],
-    formatMessage: (playerName, playerInfo) =>
-      `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt EE2!`
-  },
-  {
-    name: "At EE3",
-    phaseCondition: phase => phase === 2,
-    coords: [0, 4, 107, 111, 100, 104],
-    formatMessage: (playerName, playerInfo) =>
-      `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt EE3!`
-  },
-  {
-    name: "At Core",
-    phaseCondition: phase => phase >= 2,
-    coords: [52, 56, 113, 117, 49, 53],
-    formatMessage: (playerName, playerInfo) =>
-      `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt Core!`
-  },
-  {
-    name: "In Core",
-    phaseCondition: phase => phase >= 2,
-    coords: [41, 68, 110, 150, 59, 117],
-    formatMessage: (playerName, playerInfo) =>
-      `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eIn Core!`
-  },
-  {
-    name: "At Mid",
-    phaseCondition: phase => phase === 4,
-    coords: [47, 61, 58, 72, 69, 83],
-    formatMessage: (playerName, playerInfo) =>
-      `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt Mid!`
-  }
-];
-
 register("step", () => {
-  if (!World.isLoaded || !config.toggled || getIsInGoldor()) return;
+  if (!World.isLoaded || !config.toggled) return;
 
   World.getAllPlayers().forEach(entity => {
-    if (
-      entity.isInvisible() ||
-      entity.getPing() !== 1 ||
-      entity.getName() === Player.getName()
-    ) return;
+    if (entity.isInvisible() || entity.getPing() !== 1 || entity.getName() === Player.getName()) return;
 
     const playerName = entity.getName();
     const playerInfo = getClassOf(playerName);
+    const isInMaxor = getIsInMaxor();
+    const isInStorm = getIsInStorm();
+    const isInGoldor = getIsInGoldor();
+    const isInNecron = getIsInNecron();
 
-    zones.forEach(zone => {
-      const [x1, x2, y1, y2, z1, z2] = zone.coords;
-      if (
-        isPlayerInArea(entity, x1, x2, y1, y2, z1, z2) &&
-        lastLocation !== zone.name &&
-        zone.phaseCondition(currentGoldorPhase)
-      ) {
-        const message = zone.formatMessage(playerName, playerInfo);
-        ChatLib.chat(`${PREFIX} ${message}`);
-        showTitle(message);
-        lastLocation = zone.name;
-      }
-    });
+    if (entity.getY() < 205 && entity.getY() > 164 && !lastLocation.AtP2 && isInMaxor && playerInfo.className !== "Healer") {
+      const message = `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt P2!`;
+      lastLocation.AtP2 = true;
+      showAlert(message);
+    }
+    if (isPlayerInArea(106, 110, 118, 122, 92, 96, entity) && !lastLocation.AtSS && (isInStorm || isInGoldor)) {
+      const message = `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt SS!`;
+      lastLocation.AtSS = true;
+      showAlert(message);
+    }
+    if (isPlayerInArea(52, 56, 107, 111, 129, 133, entity) && !lastLocation.AtEE2 && currentGoldorPhase === 1 && isInGoldor) {
+      const message = `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt EE2!`;
+      lastLocation.AtEE2 = true;
+      showAlert(message);
+    }
+    if (isPlayerInArea(0, 4, 107, 111, 100, 104, entity) && !lastLocation.AtEE3&& currentGoldorPhase === 2 && isInGoldor) {
+      const message = `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt EE3!`;
+      lastLocation.AtEE3 = true;
+      showAlert(message);
+    }
+    if (isPlayerInArea(52, 56, 113, 117, 49, 53, entity) && !lastLocation.AtCore && (currentGoldorPhase === 2 || currentGoldorPhase === 3) && isInGoldor) {
+      const message = `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt Core!`;
+      lastLocation.AtCore = true;
+      showAlert(message);
+    }
+    if (isPlayerInArea(41, 68, 110, 150, 59, 117, entity) && !lastLocation.InCore && currentGoldorPhase === 4 && isInGoldor) {
+      const message = `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eIn Core!`;
+      lastLocation.InCore = true;
+      showAlert(message);
+    }
+    if (isPlayerInArea(47, 61, 58, 72, 69, 83, entity) && !lastLocation.AtMid && (isInGoldor || isInNecron)) {
+      const message = `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt Mid!`;
+      lastLocation.AtMid = true;
+      showAlert(message);
+    }
   });
-}).setFps(5);
+}).setFps(3);
 
 register("command", () => config.openGUI())
   .setName("PositionalTitles")
@@ -161,24 +168,5 @@ register("command", () => config.openGUI())
 
 register("worldUnload", () => {
   currentGoldorPhase = 0;
-  lastLocation = null;
+  Object.keys(lastLocation).forEach(key => lastLocation[key] = false);
 });
-
-///// DEBUG /////
-register("command", () => {
-  currentGoldorPhase += 1;
-  ChatLib.chat(`${PREFIX} currentGoldorPhase now: ${currentGoldorPhase}`);
-}).setName("addGoldorPhase");
-
-register("command", () => {
-  currentGoldorPhase = 0;
-  ChatLib.chat(`${PREFIX} currentGoldorPhase now: ${currentGoldorPhase}`);
-}).setName("resetGoldorPhase");
-
-register("command", () => {
-  const info = getClassOf(Player.getName());
-  ChatLib.chat(`${PREFIX} Class: ${info.color}${info.className}`);
-}).setName("playerClass");
-
-register("command", () => showTitle("test"))
-  .setName("testTitle");
