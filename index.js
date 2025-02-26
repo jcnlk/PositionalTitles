@@ -164,7 +164,7 @@ register("step", () => {
 
 register("command", () => config.openGUI())
   .setName("PositionalTitles")
-  .setAliases(["PosTitles", "PTitles", "PT"]);
+  .setAliases(["PositionalTitle", "PosTitles", "PosTitle", "PTitles", "PTitle"]);
 
 register("worldUnload", () => {
   currentGoldorPhase = 0;
