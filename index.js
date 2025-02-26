@@ -20,8 +20,8 @@ const ClassColor = {
   Healer: "&d",
   Tank: "&a",
   Mage: "&b",
-  Berserk: "&6",
-  Archer: "&c"
+  Berserk: "&c",
+  Archer: "&6"
 };
 
 function playSound() {
@@ -154,7 +154,7 @@ register("step", () => {
       lastLocation.InCore = true;
       showAlert(message);
     }
-    if (isPlayerInArea(47, 61, 58, 72, 69, 83, entity) && !lastLocation.AtMid && (isInGoldor || isInNecron)) {
+    if (isPlayerInArea(47, 61, 58, 72, 69, 83, entity) && !lastLocation.AtMid && (isInNecron)) {
       const message = `${playerInfo.color}${playerName} (${playerInfo.className[0]}) &eAt Mid!`;
       lastLocation.AtMid = true;
       showAlert(message);
